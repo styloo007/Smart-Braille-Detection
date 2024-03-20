@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Braille Detection</title>
+    <style>
+      #webcamVideo {
+        width: 200%;
+        border-radius: 5px;
+        display: none;
+        margin: auto; /* Center the video horizontally */
+      }
+
+      .content {
+          background-color: #ffffff;
+          padding: 75px;
+          border-radius: 282px;
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);
+          width: 80%;
+          max-width: 563px;
+          text-align: center;
+          margin: 0 auto; /* Center the content div */
+          transform: translateY(100px);
+
+      }
+  
+      h1 {
+          color: #333;
+          margin-bottom: 20px;
+      }
+  
+      video {
+          display: none;
+          width: 100%;
+          max-width: 400px;
+          height: auto;
+          margin-bottom: 20px;
+      }
+  
+      .button-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin-bottom: 20px;
+      }
+  
+      button {
+          padding: 10px 30px;
+          border: none;
+          border-radius: 125px;
+          cursor: pointer;
+          background-color: #007bff;
+          color: #fff;
+          transition: background-color 0.3s ease;
+          margin-right: 10px; /* Add space between buttons */
+      }
+  
+      button:last-child {
+          margin-right: 0; /* Remove right margin from the last button */
+      }
+  
+      button:hover {
+          background-color: #0056b3;
+      }
+  
+      button:disabled {
+          background-color: #ccc;
+          cursor: not-allowed;
+      }
+  
+      #predictionResult {
+          text-align: center;
+          margin-bottom: 20px;
+      }
+  
+      input[type="submit"] {
+          padding: 10px 20px;
+          border: none;
+          border-radius: 5px;
+          background-color: #007bff;
+          color: #fff;
+          cursor: pointer;
+          transition: background-color 0.3s ease;
+          transform: translateY(50px);
+      }
+  
+      input[type="submit"]:hover {
+          background-color: #0056b3;
+      }
+    
+    </style>
+    
+    </style>
+</head>
+<body bgcolor="biege">
+ <div class="content">
+    <form id="imageForm" action="analyze" method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <center><h1>Smart Braille Detection</h1></center>
+      <video id="webcamVideo" autoplay></video>
+      <div class="button-container">
+          <center><button id="startWebcam" type="button">Start Webcam</button></center>
+          <br><br>
+          <center><button id="captureImage" type="button" disabled>Capture</button></center>
+          <br><br><br>
+      </div>
+      <div id="predictionResult"></div>
+      <input type="submit" value="Submit" style="display: none;"> <!-- Hide the submit button -->
+    </form>
+ </div>
+
+ <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const video = document.getElementById('webcamVideo');
+        const startWebcamButton = document.getElementById('startWebcam');
+        const captureImageButton = document.getElementById('captureImage');
+        const predictionResult = document.getElementById('predictionResult');
+        const imageForm = document.getElementById('imageForm');
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        const csrftoken = getCookie('csrftoken');
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            startWebcamButton.addEventListener('click', function() {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function(stream) {
+                        video.srcObject = stream;
+                        video.style.display = 'block'; /* Show the video */
+                        video.classList.add("center-video"); /* Add a class to center the video */
+                        captureImageButton.disabled = false;
+                    })
+                    .catch(function(error) {
+                        console.error('Error accessing webcam:', error);
+                    });
+            });
+
+            captureImageButton.addEventListener('click', function() {
+                // Display the message "Image Captured, Processing Image ..."
+                predictionResult.innerHTML = "Image Captured, Processing Image ...";
+
+                // After 2 seconds, display "Processing Done, Click Submit for results"
+                setTimeout(function() {
+                  predictionResult.innerHTML = "Processing Done, Click Submit for results";
+                }, 4000); // 2000 milliseconds = 2 seconds
+
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob(function(blob) {
+                    const formData = new FormData(imageForm);
+                    formData.append('image', blob, 'capture.png');
+                    formData.append('csrfmiddlewaretoken', csrftoken);
+
+                    fetch(imageForm.action, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        predictionResult.innerHTML = `<h2>Prediction Result:</h2><p>${data.label}</p>`;
+                        // Redirect to results.html in the same tab
+                        window.location.href = 'templates/result.html';
+                    })
+                    .catch(error => console.error('Error:', error));
+                }, 'image/png');
+            });
+        } else {
+            console.error('Your browser does not support the MediaDevices API.');
+        }
+    });
+ </script>
+
+
+ <form action="delete" method="post" enctype="multipart/form-data">
+ {% csrf_token %}
+ <center><input type="submit" value="Submit"></center>
+ </form>
+
+</body>
+</html>
